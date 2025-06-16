@@ -4,7 +4,7 @@
 https://colab.research.google.com/drive/1VfDiy26aAPqEKoYBNBrslBhz57lK_0Uj?usp=sharing
 
 ### Dataset: COVID-19 Radiography Database
-https://www.kaggle.com/datasets/tawsifurrahman/covid19-radiography-database/data
+[https://www.kaggle.com/datasets/tawsifurrahman/covid19-radiography-database/data](https://www.kaggle.com/datasets/anasmohammedtahir/covidqu/data)
 
 ## Research Question: 
 ### Can deep learning models be used to automate severity scoring of COVID-19 from chest X-rays?
