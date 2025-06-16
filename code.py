@@ -7,6 +7,16 @@ Original file is located at
     https://colab.research.google.com/drive/1VfDiy26aAPqEKoYBNBrslBhz57lK_0Uj
 """
 
+# Step 1: Mount Google Drive
+from google.colab import drive
+drive.mount('/content/drive')
+
+# Step 2: Set your save/load paths
+import os
+
+SAVE_DIR = '/content/drive/MyDrive/covid_project_checkpoints'
+os.makedirs(SAVE_DIR, exist_ok=True)
+
 # %% [markdown]
 ### COVID-19 Chest X-Ray EDA
 # **Important Insight**: This dataset lacks severity labels (only binary COVID/non-COVID). Severity scoring requires additional datasets with clinical annotations.
@@ -46,6 +56,8 @@ from collections import Counter
 
 
 #    ```
+
+
 
 # Based on the actual structure, let's modify our paths
 import os
@@ -341,4 +353,778 @@ visualize_sample(
     'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/images/covid_4017.png',
     'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/lung masks/covid_4017.png',
     'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/infection masks/covid_4017.png'
+)
+
+import os
+import cv2
+import numpy as np
+import pandas as pd
+from collections import defaultdict
+
+# First, let's verify our merged_df structure
+print("Checking merged dataframe structure...")
+print(f"Total rows in merged_df: {len(merged_df)}")
+print("Columns in merged_df:", merged_df.columns.tolist())
+print("\nFirst few rows:")
+print(merged_df.head())
+
+# Check if paths exist
+def check_paths_exist(df):
+    path_columns = ['path_original', 'path_lung_mask', 'infection_mask_path']
+    results = defaultdict(int)
+
+    for col in path_columns:
+        exists = df[col].apply(lambda x: os.path.exists(x) if isinstance(x, str) else False)
+        results[f"{col}_exists"] = exists.sum()
+        results[f"{col}_missing"] = len(df) - exists.sum()
+
+    return results
+
+path_stats = check_paths_exist(merged_df)
+print("\nPath existence statistics:")
+for k, v in path_stats.items():
+    print(f"{k}: {v}")
+
+# Let's create a function to properly build our dataset
+def build_correct_dataset(lung_base, infection_base):
+    data = []
+
+    for subset in ['Train', 'Test', 'Val']:
+        for class_name in ['COVID-19', 'Non-COVID', 'Normal']:
+            # Paths for original images
+            img_dir = os.path.join(lung_base, subset, class_name, 'images')
+            if not os.path.exists(img_dir):
+                print(f"Missing directory: {img_dir}")
+                continue
+
+            # Get all image files
+            for img_file in os.listdir(img_dir):
+                if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    base_name = os.path.splitext(img_file)[0]
+
+                    # Construct all paths
+                    original_path = os.path.join(img_dir, img_file)
+                    lung_mask_path = os.path.join(lung_base, subset, class_name, 'lung masks', f"{base_name}.png")
+                    infection_mask_path = os.path.join(infection_base, subset, class_name, 'infection masks', f"{base_name}.png")
+
+                    # Only add if all files exist
+                    if all(os.path.exists(p) for p in [original_path, lung_mask_path, infection_mask_path]):
+                        data.append({
+                            'subset': subset,
+                            'class': class_name,
+                            'original_path': original_path,
+                            'lung_mask_path': lung_mask_path,
+                            'infection_mask_path': infection_mask_path
+                        })
+                    else:
+                        missing = [p for p in [original_path, lung_mask_path, infection_mask_path] if not os.path.exists(p)]
+                        print(f"Missing files for {base_name}: {missing}")
+
+    return pd.DataFrame(data)
+
+print("\nBuilding corrected dataset...")
+corrected_df = build_correct_dataset(lung_base, infection_base)
+print(f"Found {len(corrected_df)} complete samples")
+
+if len(corrected_df) > 0:
+    print("\nSample paths from corrected dataset:")
+    print(corrected_df.head())
+
+    # Now calculate severity scores
+    def calculate_severity(row):
+        try:
+            lung_mask = cv2.imread(row['lung_mask_path'], cv2.IMREAD_GRAYSCALE)
+            infection_mask = cv2.imread(row['infection_mask_path'], cv2.IMREAD_GRAYSCALE)
+
+            if lung_mask is None or infection_mask is None:
+                return np.nan
+
+            lung_area = np.sum(lung_mask > 127)
+            infection_area = np.sum(infection_mask > 127)
+
+            return (infection_area / lung_area) * 100 if lung_area > 0 else 0
+        except Exception as e:
+            print(f"Error calculating severity for {row['original_path']}: {str(e)}")
+            return np.nan
+
+    corrected_df['severity'] = corrected_df.apply(calculate_severity, axis=1)
+    corrected_df = corrected_df.dropna(subset=['severity'])
+
+    print("\nSeverity statistics:")
+    print(corrected_df['severity'].describe())
+
+    # Save the corrected dataframe
+    corrected_df.to_pickle('corrected_covid_dataset.pkl')
+    print("\nSaved corrected dataset to 'corrected_covid_dataset.pkl'")
+else:
+    print("\nNo valid samples found. Please check your dataset paths and structure.")
+
+# Quick path verification test
+test_path = 'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/images'
+print(f"Test path exists: {os.path.exists(test_path)}")
+print(f"Contents of COVID-19 train images: {os.listdir(test_path)[:5] if os.path.exists(test_path) else 'Path not found'}")
+
+import os
+import cv2
+import pandas as pd
+from tqdm import tqdm
+
+# Define paths
+base_path = 'covidqu_data'
+lung_base = os.path.join(base_path, 'Lung Segmentation Data', 'Lung Segmentation Data')
+infection_base = os.path.join(base_path, 'Infection Segmentation Data', 'Infection Segmentation Data')
+
+def build_verified_dataset():
+    samples = []
+
+    # Iterate through all subsets and classes
+    for subset in ['Train', 'Test', 'Val']:
+        for class_name in ['COVID-19', 'Non-COVID', 'Normal']:
+            # Path to original images
+            img_dir = os.path.join(lung_base, subset, class_name, 'images')
+
+            # Skip if directory doesn't exist
+            if not os.path.exists(img_dir):
+                print(f"Warning: Missing directory - {img_dir}")
+                continue
+
+            # Get all image files
+            image_files = [f for f in os.listdir(img_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+
+            # Track found/missing files
+            found = 0
+            missing = 0
+
+            for img_file in tqdm(image_files, desc=f"{subset}/{class_name}"):
+                base_name = os.path.splitext(img_file)[0]
+
+                # Construct all required paths
+                original_path = os.path.join(img_dir, img_file)
+                lung_mask_path = os.path.join(lung_base, subset, class_name, 'lung masks', f"{base_name}.png")
+                infection_mask_path = os.path.join(infection_base, subset, class_name, 'infection masks', f"{base_name}.png")
+
+                # Verify all files exist
+                if all(os.path.exists(p) for p in [original_path, lung_mask_path, infection_mask_path]):
+                    samples.append({
+                        'subset': subset,
+                        'class': class_name,
+                        'original_path': original_path,
+                        'lung_mask_path': lung_mask_path,
+                        'infection_mask_path': infection_mask_path
+                    })
+                    found += 1
+                else:
+                    missing += 1
+
+            print(f"{subset}/{class_name}: Found {found} complete samples, {missing} incomplete")
+
+    return pd.DataFrame(samples)
+
+print("Building verified dataset...")
+verified_df = build_verified_dataset()
+
+if len(verified_df) > 0:
+    print(f"\nSuccessfully loaded {len(verified_df)} complete samples")
+    print("\nSample records:")
+    print(verified_df.head())
+
+    # Save the verified dataset
+    verified_df.to_pickle('verified_covid_dataset.pkl')
+    print("\nSaved verified dataset to 'verified_covid_dataset.pkl'")
+
+    # Show distribution
+    print("\nClass distribution:")
+    print(verified_df['class'].value_counts())
+
+    print("\nSubset distribution:")
+    print(verified_df['subset'].value_counts())
+else:
+    print("\nNo complete samples found. Please check the dataset structure.")
+
+import cv2
+import numpy as np
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+
+# 1. Calculate severity scores
+def calculate_severity(row):
+    lung_mask = cv2.imread(row['lung_mask_path'], cv2.IMREAD_GRAYSCALE)
+    infection_mask = cv2.imread(row['infection_mask_path'], cv2.IMREAD_GRAYSCALE)
+
+    lung_area = np.sum(lung_mask > 127)
+    infection_area = np.sum(infection_mask > 127)
+
+    return (infection_area / lung_area) * 100 if lung_area > 0 else 0
+
+print("Calculating severity scores...")
+verified_df['severity'] = verified_df.apply(calculate_severity, axis=1)
+
+# 2. Create severity categories
+bins = [0, 10, 25, 50, 100]
+labels = ['mild', 'moderate', 'severe', 'critical']
+verified_df['severity_category'] = pd.cut(verified_df['severity'], bins=bins, labels=labels)
+
+# 3. Show severity distribution
+print("\nSeverity distribution:")
+print(verified_df['severity_category'].value_counts())
+
+# 4. Prepare data splits (maintaining original splits)
+train_df = verified_df[verified_df['subset'] == 'Train']
+val_df = verified_df[verified_df['subset'] == 'Val']
+test_df = verified_df[verified_df['subset'] == 'Test']
+
+# 5. Save processed datasets
+train_df.to_pickle('train_dataset.pkl')
+val_df.to_pickle('val_dataset.pkl')
+test_df.to_pickle('test_dataset.pkl')
+
+print("\nData preparation complete!")
+print(f"Training samples: {len(train_df)}")
+print(f"Validation samples: {len(val_df)}")
+print(f"Test samples: {len(test_df)}")
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import random
+
+# Set style
+sns.set_style('whitegrid')
+plt.figure(figsize=(15, 10))
+
+# 1. Severity distribution by class
+plt.subplot(2, 2, 1)
+sns.countplot(data=verified_df, x='severity_category', hue='class')
+plt.title('Severity Distribution by Class')
+plt.xlabel('Severity Category')
+plt.ylabel('Count')
+
+# 2. Severity score distribution
+plt.subplot(2, 2, 2)
+sns.histplot(verified_df['severity'], bins=30, kde=True)
+plt.title('Severity Score Distribution')
+plt.xlabel('Severity Percentage')
+
+# 3. Class distribution across splits
+plt.subplot(2, 2, 3)
+sns.countplot(data=verified_df, x='subset', hue='class')
+plt.title('Class Distribution Across Splits')
+plt.xlabel('Dataset Split')
+plt.ylabel('Count')
+
+plt.tight_layout()
+plt.show()
+
+# 4. Visualize random samples with masks and severity
+def visualize_random_samples(df, n_samples=3):
+    fig, axes = plt.subplots(n_samples, 4, figsize=(20, 5*n_samples))
+
+    for i in range(n_samples):
+        sample = df.sample(1).iloc[0]
+
+        # Load images
+        img = cv2.cvtColor(cv2.imread(sample['original_path']), cv2.COLOR_BGR2RGB)
+        lung_mask = cv2.imread(sample['lung_mask_path'], cv2.IMREAD_GRAYSCALE)
+        infection_mask = cv2.imread(sample['infection_mask_path'], cv2.IMREAD_GRAYSCALE)
+
+        # Original image
+        axes[i, 0].imshow(img)
+        axes[i, 0].set_title(f"Original\nClass: {sample['class']}")
+        axes[i, 0].axis('off')
+
+        # Lung mask
+        axes[i, 1].imshow(lung_mask, cmap='gray')
+        axes[i, 1].set_title("Lung Mask")
+        axes[i, 1].axis('off')
+
+        # Infection mask
+        axes[i, 2].imshow(infection_mask, cmap='hot')
+        axes[i, 2].set_title("Infection Mask")
+        axes[i, 2].axis('off')
+
+        # Combined
+        overlay = cv2.addWeighted(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), 0.7, infection_mask, 0.3, 0)
+        axes[i, 3].imshow(overlay, cmap='viridis')
+        axes[i, 3].set_title(f"Severity: {sample['severity']:.1f}% ({sample['severity_category']})")
+        axes[i, 3].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+print("\nVisualizing random samples...")
+visualize_random_samples(verified_df)
+
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import tensorflow as tf
+
+# Constants
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 32
+
+def create_data_generator(df, augment=False):
+    if augment:
+        datagen = ImageDataGenerator(
+            rescale=1./255,
+            rotation_range=15,
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            shear_range=0.1,
+            zoom_range=0.1,
+            horizontal_flip=True,
+            fill_mode='nearest'
+        )
+    else:
+        datagen = ImageDataGenerator(rescale=1./255)
+
+    generator = datagen.flow_from_dataframe(
+        dataframe=df,
+        x_col='original_path',
+        y_col='severity_category',
+        target_size=IMG_SIZE,
+        batch_size=BATCH_SIZE,
+        class_mode='categorical',
+        shuffle=True
+    )
+    return generator
+
+# Create generators
+# Filter out rows where 'severity_category' is NaN before creating generators
+train_df_filtered = train_df.dropna(subset=['severity_category'])
+val_df_filtered = val_df.dropna(subset=['severity_category'])
+test_df_filtered = test_df.dropna(subset=['severity_category'])
+
+
+train_generator = create_data_generator(train_df_filtered, augment=True)
+val_generator = create_data_generator(val_df_filtered)
+test_generator = create_data_generator(test_df_filtered)
+
+# Show class indices
+print("\nClass indices:", train_generator.class_indices)
+
+from tensorflow.keras.applications import EfficientNetB0
+from tensorflow.keras import layers, models
+
+def build_model(num_classes=4):
+    base_model = EfficientNetB0(
+        input_shape=(224, 224, 3),
+        include_top=False,
+        weights='imagenet'
+    )
+
+    # Freeze base model
+    base_model.trainable = False
+
+    # Add custom head
+    inputs = tf.keras.Input(shape=(224, 224, 3))
+    x = base_model(inputs, training=False)
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(128, activation='relu')(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+
+    model = tf.keras.Model(inputs, outputs)
+
+    model.compile(
+        optimizer='adam',
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+
+    return model
+
+model = build_model()
+model.summary()
+
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+
+callbacks = [
+    EarlyStopping(patience=5, restore_best_weights=True),
+    ModelCheckpoint('best_model.h5', save_best_only=True)
+]
+
+history = model.fit(
+    train_generator,
+    validation_data=val_generator,
+    epochs=30,
+    callbacks=callbacks
+)
+
+from tensorflow.keras import layers, models, optimizers
+from tensorflow.keras.applications import EfficientNetB0
+
+def build_improved_model(num_classes=4):
+    # Load base model with pretrained weights
+    base_model = EfficientNetB0(
+        input_shape=(224, 224, 3),
+        include_top=False,
+        weights='imagenet'
+    )
+
+    # Partial unfreezing (last 10 layers)
+    for layer in base_model.layers[:-10]:
+        layer.trainable = False
+    for layer in base_model.layers[-10:]:
+        layer.trainable = True
+
+    # Enhanced architecture
+    inputs = tf.keras.Input(shape=(224, 224, 3))
+    x = base_model(inputs, training=True)  # Enable training mode for BN layers
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(256, activation='relu')(x)
+    x = layers.Dropout(0.5)(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+
+    model = tf.keras.Model(inputs, outputs)
+
+    # Custom learning rate and class weights
+    model.compile(
+        optimizer=optimizers.Adam(learning_rate=1e-4),
+        loss='categorical_crossentropy',
+        metrics=['accuracy',
+                tf.keras.metrics.AUC(name='auc'),
+                tf.keras.metrics.Precision(name='precision'),
+                tf.keras.metrics.Recall(name='recall')]
+    )
+
+    return model
+
+model = build_improved_model()
+model.summary()
+
+from sklearn.utils.class_weight import compute_class_weight
+import numpy as np
+
+# Calculate class weights
+class_weights = compute_class_weight(
+    class_weight='balanced',
+    classes=np.unique(train_generator.classes),
+    y=train_generator.classes
+)
+class_weights = dict(enumerate(class_weights))
+print("Class weights:", class_weights)
+
+from tensorflow.keras.callbacks import (
+    ModelCheckpoint,
+    EarlyStopping,
+    ReduceLROnPlateau
+)
+
+callbacks = [
+    EarlyStopping(patience=10, restore_best_weights=True, monitor='val_auc'),
+    ModelCheckpoint('best_model.keras', save_best_only=True, monitor='val_auc'),
+    ReduceLROnPlateau(factor=0.5, patience=3)
+]
+
+history = model.fit(
+    train_generator,
+    validation_data=val_generator,
+    epochs=50,
+    class_weight=class_weights,
+    callbacks=callbacks
+)
+
+# Load best model
+model = tf.keras.models.load_model('best_model.keras')
+
+# Evaluate
+test_results = model.evaluate(test_generator)
+print(f"Test Accuracy: {test_results[1]:.2%}")
+print(f"Test AUC: {test_results[2]:.2%}")
+
+# Confusion matrix
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+
+y_true = test_generator.classes
+y_pred = np.argmax(model.predict(test_generator), axis=1)
+
+cm = confusion_matrix(y_true, y_pred)
+plt.figure(figsize=(8,6))
+sns.heatmap(cm, annot=True, fmt='d',
+            xticklabels=labels,
+            yticklabels=labels)
+plt.title('Confusion Matrix')
+plt.show()
+
+from tensorflow.keras.applications import DenseNet121
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.metrics import AUC
+
+# 1. Prepare binary dataset
+binary_df = verified_df.copy()
+binary_df['is_covid'] = (binary_df['class'] == 'COVID-19').astype(int)
+
+# 2. Create balanced generator
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=15,
+    width_shift_range=0.1,
+    horizontal_flip=True,
+    validation_split=0.2
+)
+
+train_generator = train_datagen.flow_from_dataframe(
+    dataframe=binary_df[binary_df['subset']=='Train'],
+    x_col='original_path',
+    y_col='is_covid',
+    class_mode='raw',
+    target_size=(224,224),
+    batch_size=32,
+    shuffle=True
+)
+
+# 3. Train DenseNet121 binary classifier
+base_model = DenseNet121(weights='imagenet', include_top=False, input_shape=(224,224,3))
+model = Sequential([
+    base_model,
+    GlobalAveragePooling2D(),
+    Dense(1, activation='sigmoid')
+])
+model.compile(optimizer=Adam(1e-4), loss='binary_crossentropy', metrics=['accuracy', AUC()])
+model.fit(train_generator, epochs=15)
+
+model.save('/content/drive/MyDrive/covid_binary_model.h5')
+
+# 1. Filter COVID cases
+covid_df = verified_df[verified_df['class']=='COVID-19'].copy()
+
+# 2. Create severity generator
+severity_generator = ImageDataGenerator(rescale=1./255).flow_from_dataframe(
+    dataframe=covid_df,
+    x_col='original_path',
+    y_col='severity',  # Continuous value
+    class_mode='raw',
+    target_size=(224,224),
+    batch_size=16
+)
+
+# 3. Train regression model
+severity_model = Sequential([
+    DenseNet121(weights='imagenet', include_top=False, input_shape=(224,224,3)),
+    GlobalAveragePooling2D(),
+    Dense(128, activation='relu'),
+    Dense(1)  # Linear output for severity %
+])
+severity_model.compile(optimizer=Adam(1e-4), loss='mse', metrics=['mae'])
+severity_model.fit(severity_generator, epochs=20)
+
+severity_model.save('/content/drive/MyDrive/severity_regression_model.h5')
+
+# Evaluate COVID detector
+test_generator = train_datagen.flow_from_dataframe(
+    dataframe=binary_df[binary_df['subset']=='Test'],
+    x_col='original_path',
+    y_col='is_covid',
+    class_mode='raw',
+    target_size=(224,224),
+    batch_size=32,
+    shuffle=False
+)
+
+loss, acc, auc = model.evaluate(test_generator)
+print(f"Test Accuracy: {acc:.1%}, AUC: {auc:.1%}")
+
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 1. Get true labels and predictions
+test_generator.reset()  # Important for correct label order
+y_true = test_generator.labels
+y_pred = (model.predict(test_generator) > 0.5).astype(int).flatten()
+
+# 2. Calculate metrics
+accuracy = accuracy_score(y_true, y_pred)
+print(f"Test Accuracy: {accuracy:.1%}")
+print("\nClassification Report:")
+print(classification_report(y_true, y_pred, target_names=['Non-COVID', 'COVID']))
+
+# 3. Confusion Matrix
+plt.figure(figsize=(8,6))
+sns.heatmap(confusion_matrix(y_true, y_pred),
+            annot=True, fmt='d', cmap='Blues',
+            xticklabels=['Non-COVID', 'COVID'],
+            yticklabels=['Non-COVID', 'COVID'])
+plt.title(f'COVID Detection (Accuracy: {accuracy:.1%})')
+plt.show()
+
+import tensorflow as tf
+from tensorflow.keras import layers, models, optimizers
+from tensorflow.keras.applications import DenseNet121
+import numpy as np
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from sklearn.model_selection import train_test_split # You might need this later for stratified splitting
+from sklearn.metrics import classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+# Assuming 'covid_df' is already loaded and contains 'original_path', 'subset', and 'severity_category'
+# Make sure the 'severity_category' column exists and has the correct values (e.g., 'mild', 'moderate', 'severe', 'critical')
+# Ensure 'covid_df' only contains rows for COVID-19 cases if this model is specifically for severity.
+
+# Convert the 'severity_category' column to string type
+covid_df['severity_category'] = covid_df['severity_category'].astype(str)
+
+# Define constants
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 16
+NUM_CLASSES = len(covid_df['severity_category'].unique()) # Get the number of unique categories
+
+# Data augmentation and preprocessing for training
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=15,
+    zoom_range=0.1,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    horizontal_flip=True
+)
+
+# Only rescaling for validation and testing
+val_test_datagen = ImageDataGenerator(rescale=1./255)
+
+# Create data generators
+# Filter out rows where 'severity_category' is NaN
+train_df_filtered = covid_df[(covid_df['subset'] == 'Train') & covid_df['severity_category'].notna()]
+val_df_filtered = covid_df[(covid_df['subset'] == 'Val') & covid_df['severity_category'].notna()]
+test_df_filtered = covid_df[(covid_df['subset'] == 'Test') & covid_df['severity_category'].notna()]
+
+
+train_gen = train_datagen.flow_from_dataframe(
+    dataframe=train_df_filtered,
+    x_col='original_path',
+    y_col='severity_category',
+    class_mode='categorical', # Use categorical for string labels -> one-hot encoding
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    shuffle=True
+)
+
+val_gen = val_test_datagen.flow_from_dataframe(
+    dataframe=val_df_filtered,
+    x_col='original_path',
+    y_col='severity_category',
+    class_mode='categorical', # Use categorical for string labels -> one-hot encoding
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    shuffle=False
+)
+
+test_gen = val_test_datagen.flow_from_dataframe(
+    dataframe=test_df_filtered,
+    x_col='original_path',
+    y_col='severity_category',
+    class_mode='categorical', # Use categorical for string labels -> one-hot encoding
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    shuffle=False
+)
+
+
+# Get the class indices from the training generator to ensure consistency
+# and map integer predictions back to category names.
+class_indices = train_gen.class_indices
+# Create a mapping from index to class name
+idx_to_class = {v: k for k, v in class_indices.items()}
+# Ensure the labels list matches the order of class indices for classification report
+sorted_labels = [idx_to_class[i] for i in sorted(idx_to_class.keys())]
+
+
+# Define the model architecture
+def build_severity_model(num_classes):
+    base_model = DenseNet121(weights='imagenet', include_top=False, input_shape=(IMG_SIZE[0], IMG_SIZE[1], 3))
+    # Keep the base model frozen for initial training, then unfreeze later if needed
+    base_model.trainable = False
+
+    model = models.Sequential([
+        base_model,
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(num_classes, activation='softmax')  # Output units equal to number of classes
+    ])
+
+    model.compile(
+        optimizer=optimizers.Adam(1e-4),
+        loss='categorical_crossentropy', # Use categorical_crossentropy for one-hot encoded labels
+        metrics=['accuracy']
+    )
+    return model
+
+# Build the model
+severity_model = build_severity_model(NUM_CLASSES)
+
+# Train the model
+print("Starting model training...")
+history = severity_model.fit(
+    train_gen,
+    steps_per_epoch=train_gen.samples // BATCH_SIZE, # Calculate steps per epoch
+    validation_data=val_gen,
+    validation_steps=val_gen.samples // BATCH_SIZE, # Calculate validation steps
+    epochs=30,
+    callbacks=[
+        tf.keras.callbacks.EarlyStopping(patience=5, monitor='val_accuracy', restore_best_weights=True),
+        tf.keras.callbacks.ModelCheckpoint('best_severity_model.keras', save_best_only=True, monitor='val_accuracy')
+    ]
+)
+print("Model training finished.")
+
+# Load the best model
+# severity_model = tf.keras.models.load_model('best_severity_model.keras')
+
+# Evaluate the model
+print("\nEvaluating the model on the test set...")
+# Reset test generator to ensure correct order for evaluation
+test_gen.reset()
+eval_results = severity_model.evaluate(test_gen, steps=test_gen.samples // BATCH_SIZE)
+
+print(f"Test Loss: {eval_results[0]:.4f}")
+print(f"Test Accuracy: {eval_results[1]:.2%}")
+
+# Generate classification report and confusion matrix
+print("\nGenerating Classification Report and Confusion Matrix...")
+# Predict probabilities for the test set
+test_gen.reset() # Reset again before prediction
+y_pred_probs = severity_model.predict(test_gen, steps=test_gen.samples // BATCH_SIZE + 1) # Add 1 to steps to ensure all samples are included
+
+# Get true labels and predicted labels (integer indices)
+y_true_indices = test_gen.classes
+y_pred_indices = np.argmax(y_pred_probs, axis=1)
+
+# Trim predicted indices to match the number of true labels
+# This is necessary because the last batch from the generator might be smaller
+# than the batch size, and predict might return more predictions than samples if steps is not exact.
+y_pred_indices = y_pred_indices[:len(y_true_indices)]
+
+
+print("\nClassification Report:")
+print(classification_report(y_true_indices, y_pred_indices, target_names=sorted_labels))
+
+# Confusion Matrix
+plt.figure(figsize=(10, 8))
+sns.heatmap(confusion_matrix(y_true_indices, y_pred_indices),
+            annot=True, fmt='d',
+            xticklabels=sorted_labels,
+            yticklabels=sorted_labels,
+            cmap='Blues')
+plt.title('Severity Prediction Confusion Matrix')
+plt.xlabel('Predicted Class')
+plt.ylabel('True Class')
+plt.show()
+
+checkpoint_path = '/content/drive/MyDrive/best_severity_model.keras'
+
+callbacks=[
+    tf.keras.callbacks.EarlyStopping(patience=5, monitor='val_accuracy', restore_best_weights=True),
+    tf.keras.callbacks.ModelCheckpoint(checkpoint_path, save_best_only=True, monitor='val_accuracy')
+]
+
+history = severity_model.fit(
+    train_gen,
+    steps_per_epoch=train_gen.samples // BATCH_SIZE,
+    validation_data=val_gen,
+    validation_steps=val_gen.samples // BATCH_SIZE,
+    epochs=30,
+    callbacks=callbacks
 )
