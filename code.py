@@ -17,6 +17,14 @@ import os
 SAVE_DIR = '/content/drive/MyDrive/covid_project_checkpoints'
 os.makedirs(SAVE_DIR, exist_ok=True)
 
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from PIL import Image
+from collections import Counter
+
 # %% [markdown]
 ### COVID-19 Chest X-Ray EDA
 # **Important Insight**: This dataset lacks severity labels (only binary COVID/non-COVID). Severity scoring requires additional datasets with clinical annotations.
@@ -354,110 +362,6 @@ visualize_sample(
     'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/lung masks/covid_4017.png',
     'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/infection masks/covid_4017.png'
 )
-
-import os
-import cv2
-import numpy as np
-import pandas as pd
-from collections import defaultdict
-
-# First, let's verify our merged_df structure
-print("Checking merged dataframe structure...")
-print(f"Total rows in merged_df: {len(merged_df)}")
-print("Columns in merged_df:", merged_df.columns.tolist())
-print("\nFirst few rows:")
-print(merged_df.head())
-
-# Check if paths exist
-def check_paths_exist(df):
-    path_columns = ['path_original', 'path_lung_mask', 'infection_mask_path']
-    results = defaultdict(int)
-
-    for col in path_columns:
-        exists = df[col].apply(lambda x: os.path.exists(x) if isinstance(x, str) else False)
-        results[f"{col}_exists"] = exists.sum()
-        results[f"{col}_missing"] = len(df) - exists.sum()
-
-    return results
-
-path_stats = check_paths_exist(merged_df)
-print("\nPath existence statistics:")
-for k, v in path_stats.items():
-    print(f"{k}: {v}")
-
-# Let's create a function to properly build our dataset
-def build_correct_dataset(lung_base, infection_base):
-    data = []
-
-    for subset in ['Train', 'Test', 'Val']:
-        for class_name in ['COVID-19', 'Non-COVID', 'Normal']:
-            # Paths for original images
-            img_dir = os.path.join(lung_base, subset, class_name, 'images')
-            if not os.path.exists(img_dir):
-                print(f"Missing directory: {img_dir}")
-                continue
-
-            # Get all image files
-            for img_file in os.listdir(img_dir):
-                if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    base_name = os.path.splitext(img_file)[0]
-
-                    # Construct all paths
-                    original_path = os.path.join(img_dir, img_file)
-                    lung_mask_path = os.path.join(lung_base, subset, class_name, 'lung masks', f"{base_name}.png")
-                    infection_mask_path = os.path.join(infection_base, subset, class_name, 'infection masks', f"{base_name}.png")
-
-                    # Only add if all files exist
-                    if all(os.path.exists(p) for p in [original_path, lung_mask_path, infection_mask_path]):
-                        data.append({
-                            'subset': subset,
-                            'class': class_name,
-                            'original_path': original_path,
-                            'lung_mask_path': lung_mask_path,
-                            'infection_mask_path': infection_mask_path
-                        })
-                    else:
-                        missing = [p for p in [original_path, lung_mask_path, infection_mask_path] if not os.path.exists(p)]
-                        print(f"Missing files for {base_name}: {missing}")
-
-    return pd.DataFrame(data)
-
-print("\nBuilding corrected dataset...")
-corrected_df = build_correct_dataset(lung_base, infection_base)
-print(f"Found {len(corrected_df)} complete samples")
-
-if len(corrected_df) > 0:
-    print("\nSample paths from corrected dataset:")
-    print(corrected_df.head())
-
-    # Now calculate severity scores
-    def calculate_severity(row):
-        try:
-            lung_mask = cv2.imread(row['lung_mask_path'], cv2.IMREAD_GRAYSCALE)
-            infection_mask = cv2.imread(row['infection_mask_path'], cv2.IMREAD_GRAYSCALE)
-
-            if lung_mask is None or infection_mask is None:
-                return np.nan
-
-            lung_area = np.sum(lung_mask > 127)
-            infection_area = np.sum(infection_mask > 127)
-
-            return (infection_area / lung_area) * 100 if lung_area > 0 else 0
-        except Exception as e:
-            print(f"Error calculating severity for {row['original_path']}: {str(e)}")
-            return np.nan
-
-    corrected_df['severity'] = corrected_df.apply(calculate_severity, axis=1)
-    corrected_df = corrected_df.dropna(subset=['severity'])
-
-    print("\nSeverity statistics:")
-    print(corrected_df['severity'].describe())
-
-    # Save the corrected dataframe
-    corrected_df.to_pickle('corrected_covid_dataset.pkl')
-    print("\nSaved corrected dataset to 'corrected_covid_dataset.pkl'")
-else:
-    print("\nNo valid samples found. Please check your dataset paths and structure.")
 
 # Quick path verification test
 test_path = 'covidqu_data/Infection Segmentation Data/Infection Segmentation Data/Train/COVID-19/images'
@@ -1128,3 +1032,488 @@ history = severity_model.fit(
     epochs=30,
     callbacks=callbacks
 )
+
+import tensorflow as tf
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.metrics import MeanAbsoluteError # Import MAE if used as a metric
+from tensorflow.keras.losses import MeanSquaredError # Import MSE
+
+# Define custom objects for loading
+custom_objects = {
+    'mse': MeanSquaredError(),
+    'mae': MeanAbsoluteError()
+}
+
+
+# Load the binary classification model from Google Drive
+try:
+    binary_model_path = '/content/drive/MyDrive/covid_binary_model.h5'
+    binary_model = tf.keras.models.load_model(binary_model_path)
+    print(f"Successfully loaded binary model from {binary_model_path}")
+    binary_model.summary()
+except Exception as e:
+    print(f"Error loading binary model: {e}")
+    binary_model = None
+
+# Load the severity regression model from Google Drive
+try:
+    severity_model_path = '/content/drive/MyDrive/severity_regression_model.h5'
+    # Load the model with custom objects
+    severity_model = tf.keras.models.load_model(severity_model_path, custom_objects=custom_objects)
+    print(f"Successfully loaded severity regression model from {severity_model_path}")
+    # Recompile the model to ensure the optimizer and metrics are set
+    severity_model.compile(optimizer=Adam(1e-4), loss='mse', metrics=['mae'])
+    print("Severity regression model recompiled successfully.")
+    severity_model.summary()
+except Exception as e:
+    print(f"Error loading severity regression model: {e}")
+    severity_model = None
+
+# Load the best severity classification model from Google Drive
+try:
+    best_severity_model_path = '/content/drive/MyDrive/best_severity_model.keras'
+    # Loading a .keras model does not typically require custom_objects for standard layers/losses
+    best_severity_model = tf.keras.models.load_model(best_severity_model_path)
+    print(f"Successfully loaded best severity classification model from {best_severity_model_path}")
+    best_severity_model.summary()
+except Exception as e:
+    print(f"Error loading best severity classification model: {e}")
+    best_severity_model = None
+
+if severity_model is not None:
+    # Prepare COVID-only test data for severity regression
+    covid_test_df = verified_df[(verified_df['subset'] == 'Test') &
+                               (verified_df['class'] == 'COVID-19')].copy()
+
+    severity_test_gen = ImageDataGenerator(rescale=1./255).flow_from_dataframe(
+        dataframe=covid_test_df,
+        x_col='original_path',
+        y_col='severity',
+        class_mode='raw',
+        target_size=(224, 224),
+        batch_size=16,
+        shuffle=False
+    )
+
+    # Evaluate
+    print("Evaluating severity regression model...")
+    loss, mae = severity_model.evaluate(severity_test_gen)
+    print(f"Test MSE: {loss:.4f}, MAE: {mae:.4f}")
+
+    # Predictions vs. Ground Truth
+    severity_test_gen.reset()
+    y_pred = severity_model.predict(severity_test_gen).flatten()
+    y_true = severity_test_gen.labels
+
+    # Plot predictions
+    plt.figure(figsize=(10, 6))
+    plt.scatter(y_true, y_pred, alpha=0.5)
+    plt.plot([0, 100], [0, 100], 'r--')  # Perfect prediction line
+    plt.xlabel("True Severity (%)")
+    plt.ylabel("Predicted Severity (%)")
+    plt.title(f"Severity Regression (MAE: {mae:.2f}%)")
+    plt.show()
+else:
+    print("Severity regression model not loaded.")
+
+if best_severity_model is not None:
+    # Prepare COVID-only test data for severity classification
+    covid_test_df = verified_df[(verified_df['subset'] == 'Test') &
+                               (verified_df['class'] == 'COVID-19')].copy()
+
+    severity_class_test_gen = ImageDataGenerator(rescale=1./255).flow_from_dataframe(
+        dataframe=covid_test_df,
+        x_col='original_path',
+        y_col='severity_category',
+        class_mode='categorical',
+        target_size=(224, 224),
+        batch_size=16,
+        shuffle=False
+    )
+
+    # Evaluate
+    print("Evaluating severity classification model...")
+    loss, accuracy = best_severity_model.evaluate(severity_class_test_gen)
+    print(f"Test Accuracy: {accuracy:.2%}")
+
+    # Confusion Matrix
+    severity_class_test_gen.reset()
+    y_pred = np.argmax(best_severity_model.predict(severity_class_test_gen), axis=1)
+    y_true = severity_class_test_gen.classes
+
+    # Map indices to labels
+    class_labels = list(severity_class_test_gen.class_indices.keys())
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(confusion_matrix(y_true, y_pred),
+                annot=True, fmt='d',
+                xticklabels=class_labels,
+                yticklabels=class_labels,
+                cmap='Blues')
+    plt.title(f"Severity Classification (Accuracy: {accuracy:.2%})")
+    plt.show()
+else:
+    print("Severity classification model not loaded.")
+
+from tensorflow.keras.applications import EfficientNetB0
+from tensorflow.keras import layers, models
+
+def build_new_severity_model():
+    base_model = EfficientNetB0(
+        input_shape=(224, 224, 3),
+        include_top=False,
+        weights='imagenet'
+    )
+    base_model.trainable = False  # Freeze for initial training
+
+    model = models.Sequential([
+        base_model,
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.3),
+        layers.Dense(1)  # Regression output
+    ])
+
+    model.compile(
+        optimizer='adam',
+        loss='mse',
+        metrics=['mae']
+    )
+    return model
+
+# Ensure the DataFrame has the required columns
+if 'verified_df' in locals():
+    # Filter COVID-19 cases and ensure 'original_path' exists
+    covid_df = verified_df[verified_df['class'] == 'COVID-19'].copy()
+
+    # Verify columns (debugging)
+    print("Columns in covid_df:", covid_df.columns.tolist())
+
+    if 'original_path' not in covid_df.columns:
+        # Try alternative column names (adjust based on your actual DataFrame)
+        if 'path_original' in covid_df.columns:
+            covid_df['original_path'] = covid_df['path_original']
+        else:
+            raise KeyError("Neither 'original_path' nor 'path_original' found in DataFrame.")
+
+    # Split data
+    train_df = covid_df[covid_df['subset'] == 'Train']
+    val_df = covid_df[covid_df['subset'] == 'Val']
+
+    # Create generators
+    train_gen = ImageDataGenerator(rescale=1./255).flow_from_dataframe(
+        dataframe=train_df,
+        x_col='original_path',  # Now guaranteed to exist
+        y_col='severity',
+        class_mode='raw',
+        target_size=(224, 224),
+        batch_size=16
+    )
+
+    val_gen = ImageDataGenerator(rescale=1./255).flow_from_dataframe(
+        dataframe=val_df,
+        x_col='original_path',
+        y_col='severity',
+        class_mode='raw',
+        target_size=(224, 224),
+        batch_size=16
+    )
+
+    # Train the model
+    new_severity_model = build_new_severity_model()
+    history = new_severity_model.fit(
+        train_gen,
+        validation_data=val_gen,
+        epochs=20,
+        callbacks=[
+            tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True)
+        ]
+    )
+
+    # Save the model
+    new_severity_model.save('/content/drive/MyDrive/new_severity_model.keras')
+    print("New severity model trained and saved.")
+else:
+    print("Error: 'verified_df' not found. Load your dataset first.")
+
+# Evaluate the new model
+test_gen = ImageDataGenerator(rescale=1./255).flow_from_dataframe(
+    dataframe=covid_test_df[covid_test_df['subset'] == 'Test'],
+    x_col='original_path',
+    y_col='severity',
+    class_mode='raw',
+    target_size=(224, 224),
+    batch_size=16
+)
+
+loss, mae = new_severity_model.evaluate(test_gen)
+print(f"New Model Test MAE: {mae:.2f}%")
+
+# Compare with old regression model (if available)
+if severity_model:
+    old_mae = severity_model.evaluate(test_gen)[1]
+    print(f"Old Model Test MAE: {old_mae:.2f}%")
+
+# Check for data leaks or incorrect preprocessing
+print("Old model training data stats:", train_df['severity'].describe())
+print("New model training data stats:", covid_df['severity'].describe())
+
+# Try unfreezing layers in EfficientNet + fine-tuning
+base_model = new_severity_model.layers[0]
+base_model.trainable = True  # Unfreeze
+new_severity_model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss='mse', metrics=['mae'])
+history = new_severity_model.fit(train_gen, validation_data=val_gen, epochs=10)
+
+def predict_severity(image_path):
+    # Step 1: Binary classification (COVID or not?)
+    img = tf.keras.preprocessing.image.load_img(image_path, target_size=(224, 224))
+    img_array = tf.keras.preprocessing.image.img_to_array(img) / 255.0
+    is_covid = binary_model.predict(np.expand_dims(img_array, axis=0))[0][0] > 0.5
+
+    if not is_covid:
+        return "Non-COVID (No severity score)"
+
+    # Step 2: Predict severity if COVID
+    severity = severity_model.predict(np.expand_dims(img_array, axis=0))[0][0]
+    return f"COVID-19 | Predicted Severity: {severity:.2f}%"
+
+# Test on a sample image
+sample_image = covid_df.iloc[0]['original_path']  # Replace with your image path
+print(predict_severity(sample_image))
+
+# Save all models and metadata
+import pickle
+
+pipeline = {
+    'binary_model': binary_model,
+    'severity_model': severity_model,
+    'class_labels': ['Non-COVID', 'COVID']
+}
+
+with open('/content/drive/MyDrive/covid_severity_pipeline.pkl', 'wb') as f:
+    pickle.dump(pipeline, f)
+
+# Plot training history (if available)
+plt.plot(history.history['mae'], label='Train MAE')
+plt.plot(history.history['val_mae'], label='Validation MAE')
+plt.title('Old Model (DenseNet121) Training Progress')
+plt.xlabel('Epochs')
+plt.ylabel('MAE (%)')
+plt.legend()
+plt.show()
+
+# Visualize predictions vs. ground truth
+test_gen.reset()
+y_pred = severity_model.predict(test_gen).flatten()
+y_true = test_gen.labels
+
+plt.scatter(y_true, y_pred, alpha=0.5)
+plt.plot([0, 100], [0, 100], 'r--')
+plt.title(f'Old Model Predictions (MAE: 4.73%)')
+plt.xlabel('True Severity (%)')
+plt.ylabel('Predicted Severity (%)')
+plt.show()
+
+plt.plot(history.history['mae'], label='Train MAE')
+plt.plot(history.history['val_mae'], label='Validation MAE')
+plt.title('New Model (EfficientNetB0) Training Progress')
+plt.xlabel('Epochs')
+plt.ylabel('MAE (%)')
+plt.legend()
+plt.show()
+
+plt.scatter(y_true, y_pred, alpha=0.5)
+plt.plot([0, 100], [0, 100], 'r--')
+plt.title(f'New Model Predictions (MAE: 28.95%)')
+plt.xlabel('True Severity (%)')
+plt.ylabel('Predicted Severity (%)')
+plt.show()
+
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import LearningRateScheduler
+
+# Unfreeze some layers for fine-tuning
+for layer in severity_model.layers[0].layers[-10:]:
+    layer.trainable = True
+
+# Adjust learning rate dynamically
+def lr_scheduler(epoch, lr):
+    return lr * 0.9 if epoch % 5 == 0 else lr
+
+severity_model.compile(
+    optimizer=Adam(1e-5),
+    loss='mse',
+    metrics=['mae']
+)
+
+history = severity_model.fit(
+    train_gen,
+    validation_data=val_gen,
+    epochs=30,
+    callbacks=[
+        LearningRateScheduler(lr_scheduler),
+        EarlyStopping(patience=5)
+    ]
+)
+
+# Evaluate on test set
+test_results = severity_model.evaluate(test_gen)
+print(f"Test MSE: {test_results[0]:.4f}, Test MAE: {test_results[1]:.4f}")
+
+# Compare with original model's MAE (4.73%)
+if test_results[1] < 4.73:
+    print("Improvement achieved! New MAE is better than original 4.73%")
+else:
+    print("No improvement. Consider alternative approaches.")
+
+# Plot training history
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['mae'], label='Train MAE')
+plt.plot(history.history['val_mae'], label='Validation MAE')
+plt.title('MAE Progress')
+plt.ylabel('MAE')
+plt.xlabel('Epoch')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Loss Progress')
+plt.ylabel('MSE Loss')
+plt.xlabel('Epoch')
+plt.legend()
+plt.show()
+
+# Visualize predictions vs ground truth
+test_gen.reset()
+y_pred = severity_model.predict(test_gen).flatten()
+y_true = test_gen.labels
+
+plt.figure(figsize=(8, 6))
+plt.scatter(y_true, y_pred, alpha=0.5)
+plt.plot([min(y_true), max(y_true)], [min(y_true), max(y_true)], 'r--')
+plt.xlabel('True Severity (%)')
+plt.ylabel('Predicted Severity (%)')
+plt.title(f'Severity Predictions (MAE: {test_results[1]:.2f}%)')
+plt.show()
+
+# Save the improved model
+severity_model.save('/content/drive/MyDrive/improved_severity_model.h5')
+
+# Proceed to build end-to-end pipeline
+def predict_severity(image_path):
+    img = tf.keras.preprocessing.image.load_img(image_path, target_size=(224, 224))
+    img_array = tf.keras.preprocessing.image.img_to_array(img) / 255.0
+    severity = severity_model.predict(np.expand_dims(img_array, axis=0))[0][0]
+    return severity
+
+print("Sample prediction:", predict_severity(test_df.iloc[0]['original_path']))
+
+severity_model.save('/content/drive/MyDrive/improved_severity_model.keras')  # Preferred format
+
+import numpy as np
+from tensorflow.keras.preprocessing import image
+
+def predict_covid_severity(image_path, covid_threshold=0.5):
+    """Pipeline: COVID detection → Severity prediction"""
+    # Load and preprocess image
+    img = image.load_img(image_path, target_size=(224, 224))
+    img_array = image.img_to_array(img) / 255.0
+    img_batch = np.expand_dims(img_array, axis=0)
+
+    # Step 1: COVID detection
+    is_covid = binary_model.predict(img_batch)[0][0] > covid_threshold
+
+    if not is_covid:
+        return {"status": "Non-COVID", "severity": None}
+
+    # Step 2: Severity prediction
+    severity = severity_model.predict(img_batch)[0][0]
+    return {
+        "status": "COVID-19",
+        "severity": float(severity),
+        "severity_category": classify_severity(severity)  # Optional
+    }
+
+def classify_severity(score):
+    """Convert severity % to category"""
+    if score < 10: return "Mild"
+    elif score < 25: return "Moderate"
+    elif score < 50: return "Severe"
+    else: return "Critical"
+
+# Test on a sample
+print(predict_covid_severity(test_df.iloc[0]['original_path']))
+
+!pip install gradio
+import gradio as gr
+
+def gradio_predict(image):
+    result = predict_covid_severity(image.name)  # image.name gives temp file path
+    if result["status"] == "Non-COVID":
+        return "Non-COVID (No severity score)"
+    return f"COVID-19 | Severity: {result['severity']:.2f}% ({result['severity_category']})"
+
+gr.Interface(
+    fn=gradio_predict,
+    inputs=gr.Image(type="filepath"),
+    outputs="text",
+    title="COVID-19 Severity Predictor",
+    description="Upload a chest X-ray to assess COVID-19 severity"
+).launch()
+
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow.keras.preprocessing import image
+
+# Get 10 random test samples
+test_samples = test_df.sample(10, random_state=42)
+
+plt.figure(figsize=(20, 10))
+for i, (_, row) in enumerate(test_samples.iterrows(), 1):
+    # Load and preprocess image
+    img = image.load_img(row['original_path'], target_size=(224, 224))
+    img_array = image.img_to_array(img) / 255.0
+
+    # Predict
+    severity_true = row['severity']
+    severity_pred = severity_model.predict(np.expand_dims(img_array, axis=0), verbose=0)[0][0]
+
+    # Plot
+    plt.subplot(2, 5, i)
+    plt.imshow(img)
+    plt.title(f"True: {severity_true:.1f}%\nPred: {severity_pred:.1f}%")
+    plt.axis('off')
+plt.tight_layout()
+plt.show()
+
+from sklearn.metrics import r2_score, mean_absolute_error
+
+# Reset and get all test predictions
+test_gen.reset()
+y_true = test_gen.labels
+y_pred = severity_model.predict(test_gen, verbose=1).flatten()
+
+# Ensure equal length
+y_true = y_true[:len(y_pred)] if len(y_true) > len(y_pred) else y_true
+
+# Key Metrics
+print(f"""
+Regression Metrics:
+- MAE: {mean_absolute_error(y_true, y_pred):.2f}%
+- R² Score: {r2_score(y_true, y_pred):.2f}
+- Error Stats:
+  - Mean Error: {np.mean(y_true - y_pred):.2f}%
+  - Std Dev: {np.std(y_true - y_pred):.2f}%
+  - Max Overestimation: {np.min(y_true - y_pred):.2f}%
+  - Max Underestimation: {np.max(y_true - y_pred):.2f}%
+""")
+
+# Error distribution plot
+plt.figure(figsize=(10,5))
+sns.histplot(y_true - y_pred, bins=20, kde=True)
+plt.title('Prediction Error Distribution')
+plt.xlabel('True - Predicted Severity (%)')
+plt.show()
+
