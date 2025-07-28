@@ -1,14 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "covid-severity-predictor/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "covid-severity-predictor/build"
-      }
-    }
-  ],
+  "buildCommand": "cd covid-severity-predictor && npm install && npm run build",
+  "outputDirectory": "covid-severity-predictor/build",
   "rewrites": [
     {
       "source": "/static/(.*)",
