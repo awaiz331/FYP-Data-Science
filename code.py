@@ -1488,32 +1488,3 @@ for i, (_, row) in enumerate(test_samples.iterrows(), 1):
 plt.tight_layout()
 plt.show()
 
-from sklearn.metrics import r2_score, mean_absolute_error
-
-# Reset and get all test predictions
-test_gen.reset()
-y_true = test_gen.labels
-y_pred = severity_model.predict(test_gen, verbose=1).flatten()
-
-# Ensure equal length
-y_true = y_true[:len(y_pred)] if len(y_true) > len(y_pred) else y_true
-
-# Key Metrics
-print(f"""
-Regression Metrics:
-- MAE: {mean_absolute_error(y_true, y_pred):.2f}%
-- R² Score: {r2_score(y_true, y_pred):.2f}
-- Error Stats:
-  - Mean Error: {np.mean(y_true - y_pred):.2f}%
-  - Std Dev: {np.std(y_true - y_pred):.2f}%
-  - Max Overestimation: {np.min(y_true - y_pred):.2f}%
-  - Max Underestimation: {np.max(y_true - y_pred):.2f}%
-""")
-
-# Error distribution plot
-plt.figure(figsize=(10,5))
-sns.histplot(y_true - y_pred, bins=20, kde=True)
-plt.title('Prediction Error Distribution')
-plt.xlabel('True - Predicted Severity (%)')
-plt.show()
-
