@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "buildCommand": "cd covid-severity-predictor && npm install && npm run build",
+  "outputDirectory": "covid-severity-predictor/build",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+} 

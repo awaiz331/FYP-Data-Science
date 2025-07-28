@@ -58,21 +58,19 @@ Since your React app is in the `covid-severity-predictor` subdirectory, deploy f
      - Install Command: `npm install`
    - Click "Deploy"
 
-### Method 3: Deploy via Vercel Dashboard
+### Method 3: Alternative Configuration
 
-1. **Prepare your project**
+If you encounter output directory issues, try using the simplified configuration:
+
+1. **Rename the simple config:**
    ```bash
-   cd covid-severity-predictor
-   npm run build
+   mv vercel-simple.json vercel.json
    ```
 
-2. **Upload to Vercel**
-   - Go to [vercel.com](https://vercel.com)
-   - Click "New Project"
-   - Choose "Upload" option
-   - Upload your `covid-severity-predictor/build` folder
-   - Configure project settings
-   - Deploy
+2. **Deploy with simplified config:**
+   ```bash
+   vercel
+   ```
 
 ## 📁 Project Structure
 
@@ -92,7 +90,8 @@ FYP-Data-Science/
 ├── custom_model.py              # Your ML model
 ├── predictions.json             # AI predictions
 ├── package.json                 # Main package.json
-└── vercel.json                  # Main vercel.json
+├── vercel.json                  # Main vercel.json
+└── vercel-simple.json          # Alternative config
 ```
 
 ## ⚙️ Configuration Files
@@ -110,26 +109,25 @@ FYP-Data-Science/
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+```
+
+### Alternative vercel-simple.json
+```json
+{
+  "version": 2,
+  "buildCommand": "cd covid-severity-predictor && npm install && npm run build",
+  "outputDirectory": "covid-severity-predictor/build",
+  "rewrites": [
     {
-      "src": "/images/(.*)",
-      "dest": "/images/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
@@ -146,17 +144,22 @@ Vercel will automatically run these commands:
 
 ### Common Issues:
 
-1. **Build fails with "react-scripts: command not found"**
+1. **"No Output Directory named 'build' found"**
+   - Ensure you're using the correct output directory: `covid-severity-predictor/build`
+   - Try the simplified configuration in `vercel-simple.json`
+   - Check that the build completes successfully
+
+2. **Build fails with "react-scripts: command not found"**
    - Ensure you're deploying from the main directory
    - Check that `covid-severity-predictor/package.json` exists
    - Verify the build command points to the correct directory
 
-2. **Images not loading**
+3. **Images not loading**
    - Ensure images are in `covid-severity-predictor/public/images/` directory
    - Check image paths in `src/data/sampleData.ts`
    - Verify image file names match exactly
 
-3. **404 errors**
+4. **404 errors**
    - Check that `vercel.json` has proper routing
    - Ensure all routes point to `index.html`
 
