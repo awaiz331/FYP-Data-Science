@@ -1,0 +1,20 @@
+{
+  "name": "fyp-data-science",
+  "version": "1.0.0",
+  "description": "COVID-19 Severity Predictor - FYP Data Science Project",
+  "main": "covid-severity-predictor/src/index.tsx",
+  "scripts": {
+    "build": "cd covid-severity-predictor && npm install && npm run build",
+    "start": "cd covid-severity-predictor && npm start",
+    "dev": "cd covid-severity-predictor && npm start"
+  },
+  "keywords": [
+    "covid-19",
+    "chest-xray",
+    "severity-prediction",
+    "machine-learning",
+    "react"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+} 

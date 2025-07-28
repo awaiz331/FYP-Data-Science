@@ -1,0 +1,282 @@
+[
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_2852.png",
+        "true_class": "COVID-19",
+        "true_severity": 33.40139842831508,
+        "true_severity_category": "severe",
+        "predicted_severity_category": "severe",
+        "predicted_probability": 0.5828018188476562,
+        "predicted_probabilities": [
+            0.21843650937080383,
+            0.06842637062072754,
+            0.1303352564573288,
+            0.5828018188476562
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1721.png",
+        "true_class": "COVID-19",
+        "true_severity": 100.0,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.9230998754501343,
+        "predicted_probabilities": [
+            0.9230998754501343,
+            0.004758837632834911,
+            0.028895962983369827,
+            0.04324531555175781
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1596.png",
+        "true_class": "COVID-19",
+        "true_severity": 6.8823273990447245,
+        "true_severity_category": "mild",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.40137001872062683,
+        "predicted_probabilities": [
+            0.40137001872062683,
+            0.10091474652290344,
+            0.19559796154499054,
+            0.30211731791496277
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_2899.png",
+        "true_class": "COVID-19",
+        "true_severity": 88.01538217570568,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.7021561861038208,
+        "predicted_probabilities": [
+            0.7021561861038208,
+            0.07420873641967773,
+            0.07361182570457458,
+            0.15002325177192688
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_3155.png",
+        "true_class": "COVID-19",
+        "true_severity": 61.709095161981985,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.9893503785133362,
+        "predicted_probabilities": [
+            0.9893503785133362,
+            0.00034612923627719283,
+            0.0019143541576340795,
+            0.008389055728912354
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_2851.png",
+        "true_class": "COVID-19",
+        "true_severity": 46.65840971018083,
+        "true_severity_category": "severe",
+        "predicted_severity_category": "severe",
+        "predicted_probability": 0.5329331755638123,
+        "predicted_probabilities": [
+            0.07692942023277283,
+            0.1139998510479927,
+            0.2761375606060028,
+            0.5329331755638123
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1870.png",
+        "true_class": "COVID-19",
+        "true_severity": 3.4867104887110605,
+        "true_severity_category": "mild",
+        "predicted_severity_category": "moderate",
+        "predicted_probability": 0.4187392294406891,
+        "predicted_probabilities": [
+            0.023040663450956345,
+            0.25352415442466736,
+            0.4187392294406891,
+            0.3046959340572357
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1795.png",
+        "true_class": "COVID-19",
+        "true_severity": 19.094844549390004,
+        "true_severity_category": "moderate",
+        "predicted_severity_category": "moderate",
+        "predicted_probability": 0.3858223557472229,
+        "predicted_probabilities": [
+            0.13211652636528015,
+            0.15299424529075623,
+            0.3858223557472229,
+            0.32906684279441833
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1844.png",
+        "true_class": "COVID-19",
+        "true_severity": 94.6435393902346,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.9510214924812317,
+        "predicted_probabilities": [
+            0.9510214924812317,
+            0.0034152832813560963,
+            0.007313309703022242,
+            0.03824983537197113
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1776.png",
+        "true_class": "COVID-19",
+        "true_severity": 49.39989251806294,
+        "true_severity_category": "severe",
+        "predicted_severity_category": "severe",
+        "predicted_probability": 0.35155054926872253,
+        "predicted_probabilities": [
+            0.311720609664917,
+            0.10086215287446976,
+            0.23586668074131012,
+            0.35155054926872253
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_3229.png",
+        "true_class": "COVID-19",
+        "true_severity": 90.97311939987497,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.6814484596252441,
+        "predicted_probabilities": [
+            0.6814484596252441,
+            0.03300042450428009,
+            0.07382672280073166,
+            0.21172435581684113
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1819.png",
+        "true_class": "COVID-19",
+        "true_severity": 83.75301072914387,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.9146124720573425,
+        "predicted_probabilities": [
+            0.9146124720573425,
+            0.009944421239197254,
+            0.01864439994096756,
+            0.05679871514439583
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_2705.png",
+        "true_class": "COVID-19",
+        "true_severity": 100.0,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.8129892349243164,
+        "predicted_probabilities": [
+            0.8129892349243164,
+            0.010637227445840836,
+            0.02236560545861721,
+            0.15400800108909607
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_3201.png",
+        "true_class": "COVID-19",
+        "true_severity": 93.88682856801053,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.9500800967216492,
+        "predicted_probabilities": [
+            0.9500800967216492,
+            0.0033551896922290325,
+            0.011110798455774784,
+            0.03545393794775009
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_2651.png",
+        "true_class": "COVID-19",
+        "true_severity": 22.73347787681683,
+        "true_severity_category": "moderate",
+        "predicted_severity_category": "severe",
+        "predicted_probability": 0.3681156039237976,
+        "predicted_probabilities": [
+            0.10881046950817108,
+            0.19459766149520874,
+            0.3284762501716614,
+            0.3681156039237976
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1874.png",
+        "true_class": "COVID-19",
+        "true_severity": 7.692654145836149,
+        "true_severity_category": "mild",
+        "predicted_severity_category": "severe",
+        "predicted_probability": 0.3645442724227905,
+        "predicted_probabilities": [
+            0.09346471726894379,
+            0.22012880444526672,
+            0.32186219096183777,
+            0.3645442724227905
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_2814.png",
+        "true_class": "COVID-19",
+        "true_severity": 20.70164348925411,
+        "true_severity_category": "moderate",
+        "predicted_severity_category": "severe",
+        "predicted_probability": 0.435701459646225,
+        "predicted_probabilities": [
+            0.22092731297016144,
+            0.12025903910398483,
+            0.22311224043369293,
+            0.435701459646225
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_1681.png",
+        "true_class": "COVID-19",
+        "true_severity": 7.457286432160803,
+        "true_severity_category": "mild",
+        "predicted_severity_category": "mild",
+        "predicted_probability": 0.3294035792350769,
+        "predicted_probabilities": [
+            0.11881403625011444,
+            0.3294035792350769,
+            0.2866078317165375,
+            0.2651745676994324
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_3087.png",
+        "true_class": "COVID-19",
+        "true_severity": 34.77287566458353,
+        "true_severity_category": "severe",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.5231831073760986,
+        "predicted_probabilities": [
+            0.5231831073760986,
+            0.05444914475083351,
+            0.12527555227279663,
+            0.2970921993255615
+        ]
+    },
+    {
+        "original_path": "covidqu_data/Lung Segmentation Data/Lung Segmentation Data/Test/COVID-19/images/covid_3114.png",
+        "true_class": "COVID-19",
+        "true_severity": 93.74562100051381,
+        "true_severity_category": "critical",
+        "predicted_severity_category": "critical",
+        "predicted_probability": 0.9014321565628052,
+        "predicted_probabilities": [
+            0.9014321565628052,
+            0.01433539018034935,
+            0.050362732261419296,
+            0.0338696651160717
+        ]
+    }
+]
